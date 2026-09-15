@@ -21,6 +21,7 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
     val relatorios by vm.reports.collectAsState()
     val materias by vm.subjects.collectAsState()
     val turmas by vm.classes.collectAsState()
+    val avaliacoes by vm.assessments.collectAsState()
 
     Column(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -32,8 +33,12 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
             Text("Seus relatórios de aula, organizados",
                 style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.85f))
             Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 StatPill("${relatorios.size}", "relatórios")
+                StatPill("${avaliacoes.size}", "avaliações")
                 StatPill("${materias.size}", "matérias")
                 StatPill("${turmas.size}", "turmas")
             }
@@ -65,6 +70,13 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
             }
             HomeCard(Icons.Default.Assignment, "Relatórios", "${relatorios.size} no total", Color(0xFFB4579C)) {
                 navController.navigate("reports")
+            }
+            HomeCard(Icons.Default.Assessment, "Avaliações", "${avaliacoes.size} lançadas", Color(0xFF4B1FA8)) {
+                navController.navigate("avaliacoes")
+            }
+            // ============ NOVO ============
+            HomeCard(Icons.Default.ShowChart, "Desempenho", "Veja a evolução das turmas", Color(0xFF7E57C2)) {
+                navController.navigate("desempenho")
             }
 
             if (relatorios.isNotEmpty()) {

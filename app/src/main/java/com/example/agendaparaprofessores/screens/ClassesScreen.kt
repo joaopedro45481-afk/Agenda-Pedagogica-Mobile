@@ -2,21 +2,23 @@ package com.example.agendaparaprofessores.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.agendaparaprofessores.data.SchoolClass
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import com.example.agendaparaprofessores.ui.*
 import com.example.agendaparaprofessores.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel()) {
     val turmas by vm.classes.collectAsState()
@@ -24,10 +26,13 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
     var editando by remember { mutableStateOf<SchoolClass?>(null) }
     var mostrarDialogo by remember { mutableStateOf(false) }
     var excluir by remember { mutableStateOf<SchoolClass?>(null) }
+    var opcoesDe by remember { mutableStateOf<SchoolClass?>(null) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { AppTopBar("Turmas", "${turmas.size} cadastradas", onBack = { navController.popBackStack() }) },
+        topBar = {
+            AppTopBar("Turmas", "${turmas.size} cadastradas", onBack = { navController.popBackStack() })
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { editando = null; mostrarDialogo = true },
@@ -38,8 +43,10 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
     ) { pad ->
         if (turmas.isEmpty()) {
             Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
-                EmptyState(Icons.Default.Groups, "Nenhuma turma ainda",
-                    "Cadastre as turmas em que você dá aula.")
+                EmptyState(
+                    Icons.Default.Groups, "Nenhuma turma ainda",
+                    "Cadastre as turmas em que você dá aula."
+                )
             }
         } else {
             LazyColumn(
@@ -49,7 +56,7 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
             ) {
                 items(turmas, key = { it.id }) { t ->
                     Card(
-                        Modifier.fillMaxWidth().clickable { editando = t; mostrarDialogo = true },
+                        Modifier.fillMaxWidth().clickable { opcoesDe = t },
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -60,18 +67,109 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
                             Column(Modifier.weight(1f)) {
                                 Text(t.name, style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    listOfNotNull(t.grade?.takeIf { it.isNotBlank() },
-                                        "${relatorios.count { it.classId == t.id }} relatórios").joinToString(" • "),
+                                    listOfNotNull(
+                                        t.grade?.takeIf { it.isNotBlank() },
+                                        "${relatorios.count { it.classId == t.id }} relatórios"
+                                    ).joinToString(" • "),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            IconButton(onClick = { editando = t; mostrarDialogo = true }) {
+                                Icon(Icons.Default.Edit, "Editar turma",
+                                    tint = MaterialTheme.colorScheme.primary)
+                            }
                             IconButton(onClick = { excluir = t }) {
-                                Icon(Icons.Default.Delete, "Excluir", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Default.Delete, "Excluir",
+                                    tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // ===== Opções da turma (bottom sheet) =====
+    opcoesDe?.let { t ->
+        ModalBottomSheet(
+            onDismissRequest = { opcoesDe = null },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(Modifier.padding(bottom = 28.dp)) {
+                Row(
+                    Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    InitialAvatar(t.name, RoxoMedio)
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(t.name, style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "${relatorios.count { it.classId == t.id }} relatórios",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                ListItem(
+                    headlineContent = { Text("Criar relatório") },
+                    supportingContent = { Text("Nova aula para ${t.name}") },
+                    leadingContent = { IconeOpcao(Icons.Default.Add) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("report_form_turma/${t.id}")
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Adicionar alunos") },
+                    supportingContent = { Text("Digite 1 por 1 ou importe a lista") },
+                    leadingContent = { IconeOpcao(Icons.Default.Person) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("alunos/${t.id}")
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Avaliações") },
+                    supportingContent = { Text("Lançar notas de ${t.name}") },
+                    leadingContent = { IconeOpcao(Icons.Default.Assessment) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("avaliacao_turma/${t.id}")
+                    }
+                )
+
+                // ============ NOVO ============
+                ListItem(
+                    headlineContent = { Text("Desempenho") },
+                    supportingContent = { Text("Ver evolução de ${t.name}") },
+                    leadingContent = { IconeOpcao(Icons.Default.ShowChart) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("desempenho/${t.id}")
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Ver relatórios") },
+                    supportingContent = { Text("Só as aulas de ${t.name}") },
+                    leadingContent = { IconeOpcao(Icons.Default.Description) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("reports_turma/${t.id}")
+                    }
+                )
             }
         }
     }
@@ -93,8 +191,8 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
                     )
                     OutlinedTextField(
                         value = serie, onValueChange = { serie = it },
-                        label = { Text("Série (opcional)") },
-                        placeholder = { Text("Ex: 9º ano") },
+                        label = { Text("Descrição (opcional)") },
+                        placeholder = { Text("Ex: Bagunceira") },
                         singleLine = true, shape = RoundedCornerShape(16.dp)
                     )
                 }
@@ -110,16 +208,31 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
                     }
                 ) { Text("Salvar") }
             },
-            dismissButton = { TextButton(onClick = { mostrarDialogo = false }) { Text("Cancelar") } }
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogo = false }) { Text("Cancelar") }
+            }
         )
     }
 
     excluir?.let { t ->
         ConfirmDeleteDialog(
             titulo = "Excluir turma?",
-            mensagem = "Os relatórios de \"${t.name}\" também serão apagados.",
+            mensagem = "Os relatórios, alunos e notas de \"${t.name}\" também serão apagados.",
             onConfirm = { vm.deleteClass(t); excluir = null },
             onDismiss = { excluir = null }
         )
+    }
+}
+
+@Composable
+private fun IconeOpcao(icone: ImageVector) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.size(44.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icone, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
     }
 }

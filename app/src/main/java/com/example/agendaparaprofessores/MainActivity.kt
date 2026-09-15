@@ -9,13 +9,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.agendaparaprofessores.ui.screens.AssessmentFormScreen
+import com.example.agendaparaprofessores.ui.screens.AssessmentsScreen
 import com.example.agendaparaprofessores.ui.screens.ClassesScreen
 import com.example.agendaparaprofessores.ui.screens.HomeScreen
+import com.example.agendaparaprofessores.ui.screens.PerformanceScreen
 import com.example.agendaparaprofessores.ui.screens.ReportFormScreen
 import com.example.agendaparaprofessores.ui.screens.ReportsScreen
+import com.example.agendaparaprofessores.ui.screens.StudentPerformanceScreen
+import com.example.agendaparaprofessores.ui.screens.StudentsScreen
 import com.example.agendaparaprofessores.ui.screens.SubjectsScreen
 import com.example.agendaparaprofessores.ui.theme.AgendaTheme
 
@@ -23,7 +30,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Desenha por baixo da barra de status (o gradiente roxo fica bonito assim)
         enableEdgeToEdge()
 
         setContent {
@@ -39,26 +45,103 @@ class MainActivity : ComponentActivity() {
                         navController = navController,
                         startDestination = "home"
                     ) {
-                        composable("home") {
-                            HomeScreen(navController)
+                        composable("home") { HomeScreen(navController) }
+                        composable("subjects") { SubjectsScreen(navController) }
+                        composable("classes") { ClassesScreen(navController) }
+
+                        // ---- Relatórios ----
+                        composable("reports") { ReportsScreen(navController) }
+                        composable(
+                            route = "reports_turma/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            ReportsScreen(
+                                navController,
+                                turmaInicial = entry.arguments?.getLong("classId") ?: -1L
+                            )
                         }
-                        composable("subjects") {
-                            SubjectsScreen(navController)
+
+                        composable("report_form") { ReportFormScreen(navController) }
+                        composable(
+                            route = "report_form_turma/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            ReportFormScreen(
+                                navController,
+                                initialClassId = entry.arguments?.getLong("classId") ?: -1L
+                            )
                         }
-                        composable("classes") {
-                            ClassesScreen(navController)
-                        }
-                        composable("reports") {
-                            ReportsScreen(navController)
-                        }
-                        // Novo relatório
-                        composable("report_form") {
-                            ReportFormScreen(navController)
-                        }
-                        // Editar relatório existente
                         composable("report_form/{id}") { entry ->
                             val id = entry.arguments?.getString("id")?.toLongOrNull() ?: 0L
                             ReportFormScreen(navController, id)
+                        }
+
+                        // ---- Alunos ----
+                        composable(
+                            route = "alunos/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            StudentsScreen(
+                                navController,
+                                entry.arguments?.getLong("classId") ?: -1L
+                            )
+                        }
+
+                        // ---- Avaliações ----
+                        composable("avaliacoes") { AssessmentsScreen(navController) }
+                        composable(
+                            route = "avaliacoes_turma/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            AssessmentsScreen(
+                                navController,
+                                turmaInicial = entry.arguments?.getLong("classId") ?: -1L
+                            )
+                        }
+                        composable("avaliacao_nova") { AssessmentFormScreen(navController) }
+                        composable(
+                            route = "avaliacao_turma/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            AssessmentFormScreen(
+                                navController,
+                                initialClassId = entry.arguments?.getLong("classId") ?: -1L
+                            )
+                        }
+                        composable(
+                            route = "avaliacao/{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.LongType })
+                        ) { entry ->
+                            AssessmentFormScreen(
+                                navController,
+                                assessmentId = entry.arguments?.getLong("id") ?: 0L
+                            )
+                        }
+
+                        // ---- Desempenho (turma) ----
+                        composable("desempenho") { PerformanceScreen(navController) }
+                        composable(
+                            route = "desempenho/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            PerformanceScreen(
+                                navController,
+                                turmaInicial = entry.arguments?.getLong("classId") ?: -1L
+                            )
+                        }
+
+                        // ---- Desempenho por aluno ----
+                        composable("desempenho_alunos") {
+                            StudentPerformanceScreen(navController)
+                        }
+                        composable(
+                            route = "desempenho_alunos/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            StudentPerformanceScreen(
+                                navController,
+                                turmaInicial = entry.arguments?.getLong("classId") ?: -1L
+                            )
                         }
                     }
                 }

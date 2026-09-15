@@ -32,6 +32,7 @@ private fun bimestreDoMes(mes: Int) = when (mes) {
 fun ReportFormScreen(
     navController: NavHostController,
     reportId: Long = 0L,
+    initialClassId: Long = -1L,
     vm: AppViewModel = viewModel()
 ) {
     val materias by vm.subjects.collectAsState()
@@ -39,7 +40,9 @@ fun ReportFormScreen(
 
     var editando by remember { mutableStateOf(reportId != 0L) }
     var materiaId by remember { mutableStateOf<Long?>(null) }
-    var turmaId by remember { mutableStateOf<Long?>(null) }
+    var turmaId by remember {
+        mutableStateOf(if (initialClassId > 0L) initialClassId else null)
+    }
     var titulo by remember { mutableStateOf("") }
     var resumo by remember { mutableStateOf("") }
     var dificuldade by remember { mutableStateOf("Médio") }
@@ -101,8 +104,12 @@ fun ReportFormScreen(
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(18.dp)
-                    ) { Text(if (editando) "Salvar alterações" else "Salvar relatório",
-                        style = MaterialTheme.typography.titleMedium) }
+                    ) {
+                        Text(
+                            if (editando) "Salvar alterações" else "Salvar relatório",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
 
                     if (editando) {
                         TextButton(
