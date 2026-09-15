@@ -18,6 +18,8 @@ import com.example.agendaparaprofessores.ui.screens.AssessmentFormScreen
 import com.example.agendaparaprofessores.ui.screens.AssessmentsScreen
 import com.example.agendaparaprofessores.ui.screens.ClassesScreen
 import com.example.agendaparaprofessores.ui.screens.HomeScreen
+import com.example.agendaparaprofessores.ui.screens.LessonPlanFormScreen
+import com.example.agendaparaprofessores.ui.screens.LessonPlansScreen
 import com.example.agendaparaprofessores.ui.screens.PerformanceScreen
 import com.example.agendaparaprofessores.ui.screens.ReportFormScreen
 import com.example.agendaparaprofessores.ui.screens.ReportsScreen
@@ -74,6 +76,17 @@ class MainActivity : ComponentActivity() {
                         composable("report_form/{id}") { entry ->
                             val id = entry.arguments?.getString("id")?.toLongOrNull() ?: 0L
                             ReportFormScreen(navController, id)
+                        }
+
+                        // ---- Relatório gerado a partir de um plano (NOVO) ----
+                        composable(
+                            route = "relatorio_do_plano/{planId}",
+                            arguments = listOf(navArgument("planId") { type = NavType.LongType })
+                        ) { entry ->
+                            ReportFormScreen(
+                                navController,
+                                lessonPlanId = entry.arguments?.getLong("planId") ?: 0L
+                            )
                         }
 
                         // ---- Alunos ----
@@ -141,6 +154,37 @@ class MainActivity : ComponentActivity() {
                             StudentPerformanceScreen(
                                 navController,
                                 turmaInicial = entry.arguments?.getLong("classId") ?: -1L
+                            )
+                        }
+
+                        // ---- Preparador de Aula (NOVO) ----
+                        composable("planos") { LessonPlansScreen(navController) }
+                        composable(
+                            route = "planos_turma/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            LessonPlansScreen(
+                                navController,
+                                turmaInicial = entry.arguments?.getLong("classId") ?: -1L
+                            )
+                        }
+                        composable("plano_novo") { LessonPlanFormScreen(navController) }
+                        composable(
+                            route = "plano_novo_turma/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            LessonPlanFormScreen(
+                                navController,
+                                initialClassId = entry.arguments?.getLong("classId") ?: -1L
+                            )
+                        }
+                        composable(
+                            route = "plano/{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.LongType })
+                        ) { entry ->
+                            LessonPlanFormScreen(
+                                navController,
+                                planId = entry.arguments?.getLong("id") ?: 0L
                             )
                         }
                     }

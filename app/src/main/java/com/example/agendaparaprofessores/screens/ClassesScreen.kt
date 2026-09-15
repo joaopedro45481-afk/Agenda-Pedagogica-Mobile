@@ -23,6 +23,7 @@ import com.example.agendaparaprofessores.ui.theme.*
 fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel()) {
     val turmas by vm.classes.collectAsState()
     val relatorios by vm.reports.collectAsState()
+    val planos by vm.lessonPlans.collectAsState()   // NOVO
     var editando by remember { mutableStateOf<SchoolClass?>(null) }
     var mostrarDialogo by remember { mutableStateOf(false) }
     var excluir by remember { mutableStateOf<SchoolClass?>(null) }
@@ -69,7 +70,8 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
                                 Text(
                                     listOfNotNull(
                                         t.grade?.takeIf { it.isNotBlank() },
-                                        "${relatorios.count { it.classId == t.id }} relatórios"
+                                        "${relatorios.count { it.classId == t.id }} relatórios",
+                                        "${planos.count { it.classId == t.id }} planos"   // NOVO
                                     ).joinToString(" • "),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -115,6 +117,31 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
 
                 Spacer(Modifier.height(12.dp))
 
+                // ============ NOVO ============
+                ListItem(
+                    headlineContent = { Text("Preparar aula") },
+                    supportingContent = { Text("Planeje a próxima aula de ${t.name}") },
+                    leadingContent = { IconeOpcao(Icons.Default.Edit) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("plano_novo_turma/${t.id}")
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Planos de aula") },
+                    supportingContent = {
+                        Text("${planos.count { it.classId == t.id }} planejada(s)")
+                    },
+                    leadingContent = { IconeOpcao(Icons.Default.List) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("planos_turma/${t.id}")
+                    }
+                )
+
                 ListItem(
                     headlineContent = { Text("Criar relatório") },
                     supportingContent = { Text("Nova aula para ${t.name}") },
@@ -148,7 +175,6 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
                     }
                 )
 
-                // ============ NOVO ============
                 ListItem(
                     headlineContent = { Text("Desempenho") },
                     supportingContent = { Text("Ver evolução de ${t.name}") },

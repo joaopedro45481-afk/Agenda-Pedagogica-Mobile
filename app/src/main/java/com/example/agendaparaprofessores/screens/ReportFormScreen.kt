@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.example.agendaparaprofessores.data.LessonPlan
 import com.example.agendaparaprofessores.data.LessonReport
 import com.example.agendaparaprofessores.ui.*
 import com.example.agendaparaprofessores.ui.theme.*
@@ -33,6 +34,7 @@ fun ReportFormScreen(
     navController: NavHostController,
     reportId: Long = 0L,
     initialClassId: Long = -1L,
+    lessonPlanId: Long = 0L,      // NOVO — vem do Preparador de Aula
     vm: AppViewModel = viewModel()
 ) {
     val materias by vm.subjects.collectAsState()
@@ -52,7 +54,11 @@ fun ReportFormScreen(
     var mostrarData by remember { mutableStateOf(false) }
     var confirmarExclusao by remember { mutableStateOf(false) }
 
-    LaunchedEffect(reportId) {
+    // ============ NOVO — vínculo com o plano ============
+    var planoId by remember { mutableStateOf(if (lessonPlanId > 0L) lessonPlanId else 0L) }
+    var planoVinculado by remember { mutableStateOf<LessonPlan?>(null) }
+
+    LaunchedEffect(reportId, lessonPlanId) {
         if (reportId != 0L) {
             vm.getReport(reportId)?.let { r ->
                 editando = true
@@ -61,6 +67,24 @@ fun ReportFormScreen(
                 dificuldade = r.difficulty
                 data = LocalDate.of(r.year, r.month, r.day)
                 bimestre = r.bimester
+                planoId = r.lessonPlanId ?: 0L
+            }
+        } else if (lessonPlanId > 0L) {
+            vm.getLessonPlan(lessonPlanId)?.let { p ->
+                planoVinculado = p
+                materiaId = p.subjectId
+                turmaId = p.classId
+                titulo = p.title
+                resumo = listOf(p.objective, p.content, p.methodology)
+                    .filter { it.isNotBlank() }
+                    .joinToString("\n\n")
+                val ano = p.plannedYear
+                val mes = p.plannedMonth
+                val dia = p.plannedDay
+                if (ano != null && mes != null && dia != null) {
+                    data = LocalDate.of(ano, mes, dia)
+                    bimestre = bimestreDoMes(mes)
+                }
             }
         }
     }
@@ -95,9 +119,12 @@ fun ReportFormScreen(
                                             day = data.dayOfMonth,
                                             month = data.monthValue,
                                             year = data.year,
-                                            bimester = bimestre
+                                            bimester = bimestre,
+                                            lessonPlanId = if (planoId > 0L) planoId else null
                                         )
                                     )
+                                    // NOVO — a aula aconteceu: o plano vira "ministrada"
+                                    if (planoId > 0L) vm.marcarPlanoComoMinistrado(planoId)
                                     navController.popBackStack()
                                 }
                             }
@@ -137,6 +164,32 @@ fun ReportFormScreen(
                         Spacer(Modifier.width(10.dp))
                         Text(it, color = MaterialTheme.colorScheme.onErrorContainer,
                             style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+
+            // ============ NOVO — aviso de que veio de um plano ============
+            planoVinculado?.let { p ->
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Edit, null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Vindo do plano de aula",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text(p.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
                     }
                 }
             }

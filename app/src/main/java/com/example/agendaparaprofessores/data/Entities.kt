@@ -34,7 +34,7 @@ data class SchoolClass(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("subjectId"), Index("classId")]
+    indices = [Index("subjectId"), Index("classId"), Index("lessonPlanId")]
 )
 data class LessonReport(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -46,7 +46,9 @@ data class LessonReport(
     val day: Int,
     val month: Int,
     val year: Int,
-    val bimester: Int
+    val bimester: Int,
+    /** Plano de aula que originou este relatório (null = relatório avulso). NOVO */
+    val lessonPlanId: Long? = null
 )
 
 @Entity(
@@ -116,4 +118,70 @@ data class Grade(
     val assessmentId: Long,
     val studentId: Long,
     val score: Double? = null   // null = NA (não avaliado)
+)
+
+/* ============================================================
+ *  NOVO — PREPARADOR DE AULA
+ *  O plano é o "antes" da aula; o relatório é o "depois".
+ *  subjectId/classId aceitam null: se você apagar a turma,
+ *  o plano continua existindo (não perde o seu planejamento).
+ * ============================================================ */
+@Entity(
+    tableName = "lesson_plans",
+    foreignKeys = [
+        ForeignKey(
+            entity = Subject::class,
+            parentColumns = ["id"],
+            childColumns = ["subjectId"],
+            onDelete = ForeignKey.SET_NULL
+        ),
+        ForeignKey(
+            entity = SchoolClass::class,
+            parentColumns = ["id"],
+            childColumns = ["classId"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [
+        Index("subjectId"),
+        Index("classId"),
+        Index("status"),
+        Index("plannedYear", "plannedMonth", "plannedDay")
+    ]
+)
+data class LessonPlan(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+
+    val subjectId: Long? = null,
+    val classId: Long? = null,
+
+    val title: String,
+
+    /** O que os alunos deverão aprender. */
+    val objective: String = "",
+
+    /** O que será trabalhado. */
+    val content: String = "",
+
+    /** Como será a aula (passo a passo). */
+    val methodology: String = "",
+
+    /** Listas editáveis: cada item em uma linha. Sem limite fixo. */
+    val materials: String = "",
+    val activities: String = "",
+    val homework: String = "",
+
+    val durationMinutes: Int? = null,
+
+    val plannedDay: Int? = null,
+    val plannedMonth: Int? = null,
+    val plannedYear: Int? = null,
+
+    /** Texto livre: "planejada", "ministrada", "adiada", o que você quiser. */
+    val status: String = "planejada",
+
+    val notes: String = "",
+
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )

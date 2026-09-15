@@ -110,7 +110,6 @@ interface AssessmentDao {
 
     @Insert suspend fun inserirNotas(grades: List<Grade>)
 
-    // ============ Base dos gráficos de desempenho da TURMA ============
     @Query(
         "SELECT a.id AS assessmentId, a.classId AS classId, a.title AS titulo, " +
                 "a.bimester AS bimester, a.year AS ano, a.month AS mes, a.day AS dia, " +
@@ -122,7 +121,6 @@ interface AssessmentDao {
     )
     fun observeMediasAvaliacoes(): Flow<List<MediaAvaliacao>>
 
-    // ============ Base do desempenho por ALUNO ============
     @Query(
         "SELECT s.id AS studentId, s.name AS studentName, a.id AS assessmentId, " +
                 "a.title AS assessmentTitle, a.bimester AS bimester, a.day AS day, " +
@@ -134,4 +132,35 @@ interface AssessmentDao {
                 "ORDER BY s.name COLLATE NOCASE, a.year, a.month, a.day"
     )
     fun observeNotasDaTurma(classId: Long): Flow<List<NotaAlunoProva>>
+}
+
+/* ============================================================
+ *  NOVO — DAO do Preparador de Aula
+ * ============================================================ */
+@Dao
+interface LessonPlanDao {
+
+    @Query("SELECT * FROM lesson_plans ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<LessonPlan>>
+
+    @Query("SELECT * FROM lesson_plans WHERE classId = :classId ORDER BY updatedAt DESC")
+    fun observeByClass(classId: Long): Flow<List<LessonPlan>>
+
+    @Query("SELECT * FROM lesson_plans WHERE status = :status ORDER BY updatedAt DESC")
+    fun observeByStatus(status: String): Flow<List<LessonPlan>>
+
+    @Query("SELECT * FROM lesson_plans WHERE id = :id")
+    suspend fun getById(id: Long): LessonPlan?
+
+    @Insert
+    suspend fun insert(plan: LessonPlan): Long
+
+    @Update
+    suspend fun update(plan: LessonPlan)
+
+    @Delete
+    suspend fun delete(plan: LessonPlan)
+
+    @Query("UPDATE lesson_plans SET status = :status, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun atualizarStatus(id: Long, status: String, updatedAt: Long)
 }

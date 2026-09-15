@@ -19,6 +19,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val reportDao = db.lessonReportDao()
     private val studentDao = db.studentDao()
     private val assessmentDao = db.assessmentDao()
+    private val lessonPlanDao = db.lessonPlanDao()
 
     val subjects: StateFlow<List<Subject>> = subjectDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -32,8 +33,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val assessments: StateFlow<List<Assessment>> = assessmentDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ============ Base dos gráficos de desempenho da TURMA ============
     val mediasAvaliacoes: StateFlow<List<MediaAvaliacao>> = assessmentDao.observeMediasAvaliacoes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ============ NOVO — Preparador de Aula ============
+    val lessonPlans: StateFlow<List<LessonPlan>> = lessonPlanDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ===== MATÉRIAS =====
@@ -88,11 +92,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun getAssessment(id: Long): Assessment? = assessmentDao.getById(id)
 
-    /** Notas de todos os alunos da turma, prova por prova (desempenho por aluno). */
     fun notasDaTurma(classId: Long): Flow<List<NotaAlunoProva>> =
         assessmentDao.observeNotasDaTurma(classId)
 
-    /** Salva a avaliação e regrava TODAS as notas numa transação (null = NA). */
     suspend fun salvarAvaliacaoComNotas(a: Assessment, notas: Map<Long, Double?>): Long =
         db.withTransaction {
             val id = if (a.id == 0L) {
@@ -110,4 +112,36 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     fun deleteAvaliacao(a: Assessment) = viewModelScope.launch { assessmentDao.delete(a) }
+
+    // ===== PREPARADOR DE AULA (NOVO) =====
+
+    suspend fun getLessonPlan(id: Long): LessonPlan? = lessonPlanDao.getById(id)
+
+    fun saveLessonPlan(plan: LessonPlan) = viewModelScope.launch {
+        val atual = plan.copy(updatedAt = System.currentTimeMillis())
+        if (atual.id == 0L) lessonPlanDao.insert(atual) else lessonPlanDao.update(atual)
+    }
+
+    fun deleteLessonPlan(plan: LessonPlan) = viewModelScope.launch { lessonPlanDao.delete(plan) }
+
+    /** Cria uma cópia do plano (mesma aula em outra turma/outra data). */
+    fun duplicarPlano(plan: LessonPlan) = viewModelScope.launch {
+        val agora = System.currentTimeMillis()
+        lessonPlanDao.insert(
+            plan.copy(
+                id = 0L,
+                status = "planejada",
+                createdAt = agora,
+                updatedAt = agora
+            )
+        )
+    }
+
+    fun atualizarStatusPlano(id: Long, status: String) = viewModelScope.launch {
+        lessonPlanDao.atualizarStatus(id, status, System.currentTimeMillis())
+    }
+
+    /** Marca o plano como ministrado depois que o relatório foi salvo. */
+    fun marcarPlanoComoMinistrado(id: Long) =
+        atualizarStatusPlano(id, "ministrada")
 }

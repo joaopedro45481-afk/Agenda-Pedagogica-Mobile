@@ -22,6 +22,7 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
     val materias by vm.subjects.collectAsState()
     val turmas by vm.classes.collectAsState()
     val avaliacoes by vm.assessments.collectAsState()
+    val planos by vm.lessonPlans.collectAsState()   // NOVO
 
     Column(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -38,6 +39,7 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 StatPill("${relatorios.size}", "relatórios")
+                StatPill("${planos.size}", "planos")          // NOVO
                 StatPill("${avaliacoes.size}", "avaliações")
                 StatPill("${materias.size}", "matérias")
                 StatPill("${turmas.size}", "turmas")
@@ -58,10 +60,24 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
                 Text("Novo relatório de aula", style = MaterialTheme.typography.titleMedium)
             }
 
+            // ============ NOVO — preparar a próxima aula ============
+            OutlinedButton(
+                onClick = { navController.navigate("plano_novo") },
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(Icons.Default.Edit, null)
+                Spacer(Modifier.width(10.dp))
+                Text("Preparar uma aula", style = MaterialTheme.typography.titleMedium)
+            }
+
             Spacer(Modifier.height(4.dp))
             Text("Atalhos", style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+            HomeCard(Icons.Default.Edit, "Preparador de aulas", "${planos.size} planos", Color(0xFF6A3DB8)) {
+                navController.navigate("planos")
+            }
             HomeCard(Icons.Default.MenuBook, "Matérias", "${materias.size} cadastradas", Roxo) {
                 navController.navigate("subjects")
             }
@@ -74,7 +90,6 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
             HomeCard(Icons.Default.Assessment, "Avaliações", "${avaliacoes.size} lançadas", Color(0xFF4B1FA8)) {
                 navController.navigate("avaliacoes")
             }
-            // ============ NOVO ============
             HomeCard(Icons.Default.ShowChart, "Desempenho", "Veja a evolução das turmas", Color(0xFF7E57C2)) {
                 navController.navigate("desempenho")
             }

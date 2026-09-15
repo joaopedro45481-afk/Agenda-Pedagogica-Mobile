@@ -10,9 +10,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         Subject::class, SchoolClass::class, LessonReport::class,
-        Student::class, Assessment::class, Grade::class
+        Student::class, Assessment::class, Grade::class,
+        LessonPlan::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun lessonReportDao(): LessonReportDao
     abstract fun studentDao(): StudentDao
     abstract fun assessmentDao(): AssessmentDao
+    abstract fun lessonPlanDao(): LessonPlanDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -87,6 +89,61 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // ============ NOVO — Preparador de Aula ============
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `lesson_plans` (" +
+                            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "`subjectId` INTEGER, " +
+                            "`classId` INTEGER, " +
+                            "`title` TEXT NOT NULL, " +
+                            "`objective` TEXT NOT NULL, " +
+                            "`content` TEXT NOT NULL, " +
+                            "`methodology` TEXT NOT NULL, " +
+                            "`materials` TEXT NOT NULL, " +
+                            "`activities` TEXT NOT NULL, " +
+                            "`homework` TEXT NOT NULL, " +
+                            "`durationMinutes` INTEGER, " +
+                            "`plannedDay` INTEGER, " +
+                            "`plannedMonth` INTEGER, " +
+                            "`plannedYear` INTEGER, " +
+                            "`status` TEXT NOT NULL, " +
+                            "`notes` TEXT NOT NULL, " +
+                            "`createdAt` INTEGER NOT NULL, " +
+                            "`updatedAt` INTEGER NOT NULL, " +
+                            "FOREIGN KEY(`subjectId`) REFERENCES `subjects`(`id`) " +
+                            "ON UPDATE NO ACTION ON DELETE SET NULL, " +
+                            "FOREIGN KEY(`classId`) REFERENCES `classes`(`id`) " +
+                            "ON UPDATE NO ACTION ON DELETE SET NULL)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_lesson_plans_subjectId` " +
+                            "ON `lesson_plans` (`subjectId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_lesson_plans_classId` " +
+                            "ON `lesson_plans` (`classId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_lesson_plans_status` " +
+                            "ON `lesson_plans` (`status`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                            "`index_lesson_plans_plannedYear_plannedMonth_plannedDay` " +
+                            "ON `lesson_plans` (`plannedYear`, `plannedMonth`, `plannedDay`)"
+                )
+
+                // Liga o relatório ao plano (coluna nova, os dados antigos ficam intactos)
+                db.execSQL("ALTER TABLE `lesson_reports` ADD COLUMN `lessonPlanId` INTEGER")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_lesson_reports_lessonPlanId` " +
+                            "ON `lesson_reports` (`lessonPlanId`)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -94,7 +151,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "professor_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }
