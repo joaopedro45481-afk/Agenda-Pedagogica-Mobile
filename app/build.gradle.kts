@@ -46,4 +46,10 @@ dependencies {
 
     // OCR offline (Google ML Kit) — ler a lista de alunos de foto ou PDF
     implementation("com.google.mlkit:text-recognition:16.0.1")
+
+    testImplementation(libs.junit)
+
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+
 }
