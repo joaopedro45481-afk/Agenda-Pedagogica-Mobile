@@ -20,6 +20,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val studentDao = db.studentDao()
     private val assessmentDao = db.assessmentDao()
     private val lessonPlanDao = db.lessonPlanDao()
+    private val attendanceDao = db.attendanceDao()
 
     val subjects: StateFlow<List<Subject>> = subjectDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -36,7 +37,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val mediasAvaliacoes: StateFlow<List<MediaAvaliacao>> = assessmentDao.observeMediasAvaliacoes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ============ NOVO — Preparador de Aula ============
+    // ============ Preparador de Aula ============
     val lessonPlans: StateFlow<List<LessonPlan>> = lessonPlanDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -113,7 +114,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteAvaliacao(a: Assessment) = viewModelScope.launch { assessmentDao.delete(a) }
 
-    // ===== PREPARADOR DE AULA (NOVO) =====
+    // ===== PREPARADOR DE AULA =====
 
     suspend fun getLessonPlan(id: Long): LessonPlan? = lessonPlanDao.getById(id)
 
@@ -144,4 +145,40 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Marca o plano como ministrado depois que o relatório foi salvo. */
     fun marcarPlanoComoMinistrado(id: Long) =
         atualizarStatusPlano(id, "ministrada")
+
+    // ===== FREQUÊNCIA (chamada) =====
+
+    fun chamadaDaTurma(classId: Long, dia: Int, mes: Int, ano: Int): Flow<List<PresencaAluno>> =
+        attendanceDao.observeChamada(classId, dia, mes, ano)
+
+    fun resumoFrequencia(classId: Long): Flow<List<ResumoFrequencia>> =
+        attendanceDao.observeResumo(classId)
+
+    fun diasComChamada(classId: Long): Flow<Int> =
+        attendanceDao.observeDiasComChamada(classId)
+
+    /**
+     * Regrava a chamada do dia inteiro numa transação.
+     * Se algo falhar no meio, o Room dá rollback e a chamada antiga continua intacta.
+     */
+    suspend fun salvarChamada(
+        classId: Long,
+        dia: Int,
+        mes: Int,
+        ano: Int,
+        presencas: Map<Long, Boolean>
+    ) = db.withTransaction {
+        attendanceDao.apagarDoDia(classId, dia, mes, ano)
+        val registros = presencas.map { (alunoId, presente) ->
+            Attendance(
+                classId = classId,
+                studentId = alunoId,
+                day = dia,
+                month = mes,
+                year = ano,
+                present = presente
+            )
+        }
+        if (registros.isNotEmpty()) attendanceDao.inserir(registros)
+    }
 }

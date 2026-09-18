@@ -7,48 +7,15 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "subjects")
 data class Subject(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val name: String
 )
 
 @Entity(tableName = "classes")
 data class SchoolClass(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val name: String,
     val grade: String? = null
-)
-
-@Entity(
-    tableName = "lesson_reports",
-    foreignKeys = [
-        ForeignKey(
-            entity = Subject::class,
-            parentColumns = ["id"],
-            childColumns = ["subjectId"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = SchoolClass::class,
-            parentColumns = ["id"],
-            childColumns = ["classId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
-    indices = [Index("subjectId"), Index("classId"), Index("lessonPlanId")]
-)
-data class LessonReport(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val subjectId: Long,
-    val classId: Long,
-    val title: String,
-    val summary: String,
-    val difficulty: String,
-    val day: Int,
-    val month: Int,
-    val year: Int,
-    val bimester: Int,
-    /** Plano de aula que originou este relatório (null = relatório avulso). NOVO */
-    val lessonPlanId: Long? = null
 )
 
 @Entity(
@@ -64,7 +31,7 @@ data class LessonReport(
     indices = [Index("classId")]
 )
 data class Student(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val classId: Long,
     val name: String
 )
@@ -82,7 +49,7 @@ data class Student(
     indices = [Index("classId")]
 )
 data class Assessment(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val classId: Long,
     val title: String,
     val day: Int,
@@ -114,18 +81,12 @@ data class Assessment(
     ]
 )
 data class Grade(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val assessmentId: Long,
     val studentId: Long,
-    val score: Double? = null   // null = NA (não avaliado)
+    val score: Double?
 )
 
-/* ============================================================
- *  NOVO — PREPARADOR DE AULA
- *  O plano é o "antes" da aula; o relatório é o "depois".
- *  subjectId/classId aceitam null: se você apagar a turma,
- *  o plano continua existindo (não perde o seu planejamento).
- * ============================================================ */
 @Entity(
     tableName = "lesson_plans",
     foreignKeys = [
@@ -146,42 +107,95 @@ data class Grade(
         Index("subjectId"),
         Index("classId"),
         Index("status"),
-        Index("plannedYear", "plannedMonth", "plannedDay")
+        Index(value = ["plannedYear", "plannedMonth", "plannedDay"])
     ]
 )
 data class LessonPlan(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-
-    val subjectId: Long? = null,
-    val classId: Long? = null,
-
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val subjectId: Long?,
+    val classId: Long?,
     val title: String,
-
-    /** O que os alunos deverão aprender. */
-    val objective: String = "",
-
-    /** O que será trabalhado. */
-    val content: String = "",
-
-    /** Como será a aula (passo a passo). */
-    val methodology: String = "",
-
-    /** Listas editáveis: cada item em uma linha. Sem limite fixo. */
-    val materials: String = "",
-    val activities: String = "",
-    val homework: String = "",
-
-    val durationMinutes: Int? = null,
-
-    val plannedDay: Int? = null,
-    val plannedMonth: Int? = null,
-    val plannedYear: Int? = null,
-
-    /** Texto livre: "planejada", "ministrada", "adiada", o que você quiser. */
-    val status: String = "planejada",
-
-    val notes: String = "",
-
+    val objective: String,
+    val content: String,
+    val methodology: String,
+    val materials: String,
+    val activities: String,
+    val homework: String,
+    val durationMinutes: Int?,
+    val plannedDay: Int?,
+    val plannedMonth: Int?,
+    val plannedYear: Int?,
+    val status: String, // planejada, ministrada, cancelada
+    val notes: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "lesson_reports",
+    foreignKeys = [
+        ForeignKey(
+            entity = Subject::class,
+            parentColumns = ["id"],
+            childColumns = ["subjectId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = SchoolClass::class,
+            parentColumns = ["id"],
+            childColumns = ["classId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index("subjectId"),
+        Index("classId"),
+        Index("lessonPlanId")
+    ]
+)
+data class LessonReport(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val subjectId: Long,
+    val classId: Long,
+    val title: String,
+    val summary: String,
+    val difficulty: String,
+    val day: Int,
+    val month: Int,
+    val year: Int,
+    val bimester: Int,
+    val lessonPlanId: Long? = null
+)
+
+@Entity(
+    tableName = "attendance",
+    foreignKeys = [
+        ForeignKey(
+            entity = SchoolClass::class,
+            parentColumns = ["id"],
+            childColumns = ["classId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = Student::class,
+            parentColumns = ["id"],
+            childColumns = ["studentId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index("classId"),
+        Index("studentId"),
+        Index(value = ["studentId", "day", "month", "year"], unique = true),
+        Index(value = ["classId", "year", "month", "day"])
+    ]
+)
+data class Attendance(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val classId: Long,
+    val studentId: Long,
+    val day: Int,
+    val month: Int,
+    val year: Int,
+    val present: Boolean
 )

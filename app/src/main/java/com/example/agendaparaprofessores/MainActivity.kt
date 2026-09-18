@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.agendaparaprofessores.ui.screens.AssessmentFormScreen
 import com.example.agendaparaprofessores.ui.screens.AssessmentsScreen
+import com.example.agendaparaprofessores.ui.screens.AttendanceScreen
 import com.example.agendaparaprofessores.ui.screens.ClassesScreen
 import com.example.agendaparaprofessores.ui.screens.HomeScreen
 import com.example.agendaparaprofessores.ui.screens.LessonPlanFormScreen
@@ -78,7 +79,7 @@ class MainActivity : ComponentActivity() {
                             ReportFormScreen(navController, id)
                         }
 
-                        // ---- Relatório gerado a partir de um plano (NOVO) ----
+                        // ---- Relatório gerado a partir de um plano ----
                         composable(
                             route = "relatorio_do_plano/{planId}",
                             arguments = listOf(navArgument("planId") { type = NavType.LongType })
@@ -157,7 +158,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // ---- Preparador de Aula (NOVO) ----
+                        // ---- Preparador de Aula ----
                         composable("planos") { LessonPlansScreen(navController) }
                         composable(
                             route = "planos_turma/{classId}",
@@ -185,6 +186,18 @@ class MainActivity : ComponentActivity() {
                             LessonPlanFormScreen(
                                 navController,
                                 planId = entry.arguments?.getLong("id") ?: 0L
+                            )
+                        }
+
+                        // ---- Frequência (chamada) ----
+                        composable("frequencia") { AttendanceScreen(navController) }
+                        composable(
+                            route = "frequencia/{classId}",
+                            arguments = listOf(navArgument("classId") { type = NavType.LongType })
+                        ) { entry ->
+                            AttendanceScreen(
+                                navController,
+                                turmaInicial = entry.arguments?.getLong("classId") ?: -1L
                             )
                         }
                     }

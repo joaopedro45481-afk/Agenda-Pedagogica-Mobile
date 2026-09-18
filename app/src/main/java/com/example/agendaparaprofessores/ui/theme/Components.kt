@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import com.example.agendaparaprofessores.data.LessonReport
 import com.example.agendaparaprofessores.ui.theme.*
+import kotlin.math.roundToInt
 
 fun formatarData(r: LessonReport) = "%02d/%02d/%04d".format(r.day, r.month, r.year)
 
@@ -320,3 +321,199 @@ fun DropdownField(
         }
     }
 }
+
+data class PontoGrafico(
+    val rotulo: String,
+    val valor: Double
+)
+
+@Composable
+fun GraficoLinha(
+    pontos: List<PontoGrafico>,
+    maxValor: Double = 10.0,
+    altura: Dp = 210.dp,
+    cor: Color = MaterialTheme.colorScheme.primary,
+    mensagemVazio: String = "Nenhum dado disponível"
+) {
+    if (pontos.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(altura),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = mensagemVazio,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        return
+    }
+
+    val corGrade = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val corPonto = MaterialTheme.colorScheme.surface
+
+    Column {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(altura - 30.dp)
+        ) {
+            val margemHorizontal = 32f
+            val margemVertical = 16f
+            val larguraUtil = size.width - margemHorizontal * 2
+            val alturaUtil = size.height - margemVertical * 2
+
+            fun pontoDe(i: Int): androidx.compose.ui.geometry.Offset {
+                val x = if (pontos.size <= 1) {
+                    size.width / 2f
+                } else {
+                    margemHorizontal + i * larguraUtil / (pontos.size - 1).toFloat()
+                }
+                val normalizado = (pontos[i].valor / maxValor).coerceIn(0.0, 1.0)
+                val y = size.height - margemVertical - (normalizado * alturaUtil).toFloat()
+                return androidx.compose.ui.geometry.Offset(x, y)
+            }
+
+            for (i in 0..4) {
+                val y = margemVertical + i * alturaUtil / 4f
+                drawLine(
+                    color = corGrade,
+                    start = androidx.compose.ui.geometry.Offset(margemHorizontal, y),
+                    end = androidx.compose.ui.geometry.Offset(size.width - margemHorizontal, y),
+                    strokeWidth = 1f
+                )
+            }
+
+            if (pontos.size > 1) {
+                val caminho = Path()
+                val primeiro = pontoDe(0)
+                caminho.moveTo(primeiro.x, primeiro.y)
+                for (i in 1 until pontos.size) {
+                    val atual = pontoDe(i)
+                    caminho.lineTo(atual.x, atual.y)
+                }
+                drawPath(caminho, cor, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f, cap = StrokeCap.Round))
+            }
+
+            for (i in pontos.indices) {
+                val p = pontoDe(i)
+                drawCircle(color = corPonto, radius = 8f, center = p)
+                drawCircle(color = cor, radius = 5f, center = p)
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            pontos.forEach { ponto ->
+                Text(
+                    text = ponto.rotulo,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+data class BarraGrafico(
+    val rotulo: String,
+    val valor: Double?,
+    val cor: Color
+)
+
+@Composable
+fun GraficoBarras(
+    barras: List<BarraGrafico>,
+    maxValor: Double = 100.0,
+    altura: Dp = 210.dp,
+    sufixo: String = "",
+    mensagemVazio: String = "Nenhum dado disponível"
+) {
+    if (barras.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(altura),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = mensagemVazio,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        return
+    }
+
+    val scrollState = rememberScrollState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(altura)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .horizontalScroll(scrollState)
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            barras.forEach { barra ->
+                val valor = barra.valor ?: 0.0
+                val proporcao = (valor / maxValor).coerceIn(0.0, 1.0)
+                
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(48.dp),
+                    verticalArrangement = Arrangement.Bottom
+                ) {
+                    Text(
+                        text = "${valor.roundToInt()}$sufixo",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = barra.cor
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(proporcao.toFloat().coerceIn(0.01f, 1.0f))
+                                .background(barra.cor.copy(alpha = 0.85f), RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = barra.rotulo,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+

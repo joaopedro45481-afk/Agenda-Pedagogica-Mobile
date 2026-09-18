@@ -23,7 +23,7 @@ import com.example.agendaparaprofessores.ui.theme.*
 fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel()) {
     val turmas by vm.classes.collectAsState()
     val relatorios by vm.reports.collectAsState()
-    val planos by vm.lessonPlans.collectAsState()   // NOVO
+    val planos by vm.lessonPlans.collectAsState()
     var editando by remember { mutableStateOf<SchoolClass?>(null) }
     var mostrarDialogo by remember { mutableStateOf(false) }
     var excluir by remember { mutableStateOf<SchoolClass?>(null) }
@@ -71,7 +71,7 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
                                     listOfNotNull(
                                         t.grade?.takeIf { it.isNotBlank() },
                                         "${relatorios.count { it.classId == t.id }} relatórios",
-                                        "${planos.count { it.classId == t.id }} planos"   // NOVO
+                                        "${planos.count { it.classId == t.id }} planos"
                                     ).joinToString(" • "),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -117,7 +117,6 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
 
                 Spacer(Modifier.height(12.dp))
 
-                // ============ NOVO ============
                 ListItem(
                     headlineContent = { Text("Preparar aula") },
                     supportingContent = { Text("Planeje a próxima aula de ${t.name}") },
@@ -161,6 +160,18 @@ fun ClassesScreen(navController: NavHostController, vm: AppViewModel = viewModel
                     modifier = Modifier.clickable {
                         opcoesDe = null
                         navController.navigate("alunos/${t.id}")
+                    }
+                )
+
+                // ============ NOVO ============
+                ListItem(
+                    headlineContent = { Text("Frequência") },
+                    supportingContent = { Text("Fazer a chamada de ${t.name}") },
+                    leadingContent = { IconeOpcao(Icons.Default.HowToReg) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.clickable {
+                        opcoesDe = null
+                        navController.navigate("frequencia/${t.id}")
                     }
                 )
 

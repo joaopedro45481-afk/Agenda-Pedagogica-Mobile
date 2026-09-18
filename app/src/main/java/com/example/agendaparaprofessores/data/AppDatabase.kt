@@ -11,9 +11,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         Subject::class, SchoolClass::class, LessonReport::class,
         Student::class, Assessment::class, Grade::class,
-        LessonPlan::class
+        LessonPlan::class, Attendance::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -23,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun studentDao(): StudentDao
     abstract fun assessmentDao(): AssessmentDao
     abstract fun lessonPlanDao(): LessonPlanDao
+    abstract fun attendanceDao(): AttendanceDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -89,7 +90,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // ============ NOVO — Preparador de Aula ============
+        // ============ Preparador de Aula ============
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -135,11 +136,47 @@ abstract class AppDatabase : RoomDatabase() {
                             "ON `lesson_plans` (`plannedYear`, `plannedMonth`, `plannedDay`)"
                 )
 
-                // Liga o relatório ao plano (coluna nova, os dados antigos ficam intactos)
                 db.execSQL("ALTER TABLE `lesson_reports` ADD COLUMN `lessonPlanId` INTEGER")
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_lesson_reports_lessonPlanId` " +
                             "ON `lesson_reports` (`lessonPlanId`)"
+                )
+            }
+        }
+
+        // ============ Frequência (chamada) ============
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `attendance` (" +
+                            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                            "`classId` INTEGER NOT NULL, " +
+                            "`studentId` INTEGER NOT NULL, " +
+                            "`day` INTEGER NOT NULL, " +
+                            "`month` INTEGER NOT NULL, " +
+                            "`year` INTEGER NOT NULL, " +
+                            "`present` INTEGER NOT NULL, " +
+                            "FOREIGN KEY(`classId`) REFERENCES `classes`(`id`) " +
+                            "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                            "FOREIGN KEY(`studentId`) REFERENCES `students`(`id`) " +
+                            "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_attendance_classId` " +
+                            "ON `attendance` (`classId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_attendance_studentId` " +
+                            "ON `attendance` (`studentId`)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                            "`index_attendance_studentId_day_month_year` " +
+                            "ON `attendance` (`studentId`, `day`, `month`, `year`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_attendance_classId_year_month_day` " +
+                            "ON `attendance` (`classId`, `year`, `month`, `day`)"
                 )
             }
         }
@@ -151,7 +188,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "professor_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(
+                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5
+                    )
                     .build()
                     .also { INSTANCE = it }
             }

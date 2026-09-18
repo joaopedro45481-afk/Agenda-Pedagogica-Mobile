@@ -135,7 +135,7 @@ interface AssessmentDao {
 }
 
 /* ============================================================
- *  NOVO — DAO do Preparador de Aula
+ *  DAO do Preparador de Aula
  * ============================================================ */
 @Dao
 interface LessonPlanDao {
@@ -163,4 +163,69 @@ interface LessonPlanDao {
 
     @Query("UPDATE lesson_plans SET status = :status, updatedAt = :updatedAt WHERE id = :id")
     suspend fun atualizarStatus(id: Long, status: String, updatedAt: Long)
+}
+
+/* ============================================================
+ *  DAO da Frequência (chamada)
+ * ============================================================ */
+
+/** Aluno + presença no dia. Sem registro = presente (COALESCE → 1). */
+data class PresencaAluno(
+    val studentId: Long,
+    val nome: String,
+    val present: Boolean
+)
+
+/** Resumo de frequência de um aluno na turma. */
+data class ResumoFrequencia(
+    val studentId: Long,
+    val nome: String,
+    val presentes: Int,
+    val faltas: Int,
+    val total: Int
+) {
+    val percentual: Int get() = if (total == 0) 100 else (presentes * 100) / total
+}
+
+@Dao
+interface AttendanceDao {
+
+    @Query(
+        "SELECT s.id AS studentId, s.name AS nome, COALESCE(a.present, 1) AS present " +
+                "FROM students s " +
+                "LEFT JOIN attendance a ON a.studentId = s.id " +
+                "  AND a.day = :day AND a.month = :month AND a.year = :year " +
+                "WHERE s.classId = :classId " +
+                "ORDER BY s.name COLLATE NOCASE"
+    )
+    fun observeChamada(classId: Long, day: Int, month: Int, year: Int): Flow<List<PresencaAluno>>
+
+    @Query(
+        "DELETE FROM attendance " +
+                "WHERE classId = :classId AND day = :day AND month = :month AND year = :year"
+    )
+    suspend fun apagarDoDia(classId: Long, day: Int, month: Int, year: Int)
+
+    @Insert
+    suspend fun inserir(registros: List<Attendance>)
+
+    /** Quantos dias diferentes já têm chamada salva nessa turma. */
+    @Query(
+        "SELECT COUNT(DISTINCT (year * 10000 + month * 100 + day)) " +
+                "FROM attendance WHERE classId = :classId"
+    )
+    fun observeDiasComChamada(classId: Long): Flow<Int>
+
+    /** Resumo por aluno: presentes, faltas e total de aulas registradas. */
+    @Query(
+        "SELECT s.id AS studentId, s.name AS nome, " +
+                "SUM(CASE WHEN a.present = 1 THEN 1 ELSE 0 END) AS presentes, " +
+                "SUM(CASE WHEN a.present = 0 THEN 1 ELSE 0 END) AS faltas, " +
+                "COUNT(a.id) AS total " +
+                "FROM students s " +
+                "LEFT JOIN attendance a ON a.studentId = s.id AND a.classId = s.classId " +
+                "WHERE s.classId = :classId " +
+                "GROUP BY s.id ORDER BY s.name COLLATE NOCASE"
+    )
+    fun observeResumo(classId: Long): Flow<List<ResumoFrequencia>>
 }

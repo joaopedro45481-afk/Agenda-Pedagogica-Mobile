@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ShowChart
@@ -54,9 +55,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.agendaparaprofessores.data.NotaAlunoProva
+import com.example.agendaparaprofessores.data.ResumoFrequencia          // NOVO
 import com.example.agendaparaprofessores.ui.AppTopBar
+import com.example.agendaparaprofessores.ui.BarraGrafico             // NOVO
 import com.example.agendaparaprofessores.ui.EmptyState
+import com.example.agendaparaprofessores.ui.GraficoBarras            // NOVO
+import com.example.agendaparaprofessores.ui.GraficoLinha
 import com.example.agendaparaprofessores.ui.InitialAvatar
+import com.example.agendaparaprofessores.ui.PontoGrafico
 import com.example.agendaparaprofessores.ui.SelectableChip
 import com.example.agendaparaprofessores.ui.theme.AmbarTexto
 import com.example.agendaparaprofessores.ui.theme.AppViewModel
@@ -74,9 +80,14 @@ private data class AlunoResumo(
     val studentId: Long,
     val nome: String,
     val notas: List<NotaAlunoProva>,
-    val mediaGeral: Double,
+    val mediaGeral: Double?,
     val porBimestre: List<Pair<Int, Double>>,
-    val evolucao: Double?
+    val evolucao: Double?,
+    // ---- frequência (NOVO) ----
+    val presentes: Int,
+    val faltas: Int,
+    val aulas: Int,
+    val percentualPresenca: Int?   // null = sem chamada registrada
 )
 
 private data class Tendencia(
@@ -85,32 +96,72 @@ private data class Tendencia(
     val icone: ImageVector
 )
 
-private fun montarResumos(notas: List<NotaAlunoProva>): List<AlunoResumo> =
-    notas
-        .groupBy { it.studentId }
-        .map { (studentId, lista) ->
-            val porBimestre = lista
-                .groupBy { it.bimester }
-                .map { (bimestre, doBimestre) ->
-                    bimestre to doBimestre.map { it.score }.average()
-                }
-                .sortedBy { it.first }
+/** Junta as notas e a frequência pelo studentId (um aluno pode ter só uma das duas). */
+private fun montarResumos(
+    notas: List<NotaAlunoProva>,
+    frequencias: List<ResumoFrequencia>
+): List<AlunoResumo> {
+    val notasPorAluno = notas.groupBy { it.studentId }
+    val frequenciaPorAluno = frequencias.associateBy { it.studentId }
+    val ids = (notasPorAluno.keys + frequenciaPorAluno.keys).distinct()
 
-            AlunoResumo(
-                studentId = studentId,
-                nome = lista.first().studentName,
-                notas = lista.sortedWith(
-                    compareBy({ it.year }, { it.month }, { it.day }, { it.assessmentId })
-                ),
-                mediaGeral = lista.map { it.score }.average(),
-                porBimestre = porBimestre,
-                evolucao = if (porBimestre.size >= 2) {
-                    porBimestre.last().second - porBimestre.first().second
-                } else {
-                    null
-                }
+    return ids.map { id ->
+        val lista = notasPorAluno[id].orEmpty()
+        val freq = frequenciaPorAluno[id]
+
+        val porBimestre = lista
+            .groupBy { it.bimester }
+            .map { (bimestre, doBimestre) ->
+                bimestre to doBimestre.map { it.score }.average()
+            }
+            .sortedBy { it.first }
+
+        AlunoResumo(
+            studentId = id,
+            nome = lista.firstOrNull()?.studentName ?: freq?.nome ?: "Aluno",
+            notas = lista.sortedWith(
+                compareBy({ it.year }, { it.month }, { it.day }, { it.assessmentId })
+            ),
+            mediaGeral = if (lista.isEmpty()) null else lista.map { it.score }.average(),
+            porBimestre = porBimestre,
+            evolucao = if (porBimestre.size >= 2) {
+                porBimestre.last().second - porBimestre.first().second
+            } else {
+                null
+            },
+            presentes = freq?.presentes ?: 0,
+            faltas = freq?.faltas ?: 0,
+            aulas = freq?.total ?: 0,
+            // o modelo devolve 100 quando total == 0 — aqui isso vira "sem chamada"
+            percentualPresenca = freq?.takeIf { it.total > 0 }?.percentual
+        )
+    }
+}
+
+/** Média da turma em cada prova, em ordem cronológica. */
+private fun pontosDaTurma(notas: List<NotaAlunoProva>): List<PontoGrafico> =
+    notas
+        .groupBy { it.assessmentId }
+        .entries
+        .sortedBy { (_, lista) ->
+            val ref = lista.first()
+            ref.year * 10000 + ref.month * 100 + ref.day
+        }
+        .map { (_, lista) ->
+            val ref = lista.first()
+            PontoGrafico(
+                rotulo = "%02d/%02d".format(ref.day, ref.month),
+                valor = lista.map { it.score }.average()
             )
         }
+
+@Composable
+private fun corDaPresenca(percentual: Int?): Color = when {
+    percentual == null -> MaterialTheme.colorScheme.onSurfaceVariant
+    percentual >= 85 -> VerdeTexto
+    percentual >= 75 -> AmbarTexto
+    else -> VermelhoTexto
+}
 
 @Composable
 private fun tendenciaDe(evolucao: Double?): Tendencia = when {
@@ -126,8 +177,21 @@ private fun formatarNumero(valor: Double): String =
     if (valor == valor.roundToInt().toDouble()) valor.roundToInt().toString()
     else "%.2f".format(valor).replace('.', ',')
 
+private fun formatarMedia(valor: Double?): String =
+    valor?.let { formatarNumero(it) } ?: "—"
+
 private fun dataDaProva(nota: NotaAlunoProva): String =
     "%02d/%02d/%04d".format(nota.day, nota.month, nota.year)
+
+/** "Ana Souza" -> "Ana S." (pra caber embaixo da barra). */
+private fun apelido(nome: String): String {
+    val partes = nome.trim().split(" ").filter { it.isNotBlank() }
+    return when {
+        partes.isEmpty() -> "Aluno"
+        partes.size == 1 -> partes[0]
+        else -> "${partes[0]} ${partes[1].first().uppercaseChar()}."
+    }
+}
 
 /* ============================================================
  *  TELA
@@ -147,7 +211,6 @@ fun StudentPerformanceScreen(
     var ordenacao by remember { mutableStateOf(0) }        // 0 nome · 1 média · 2 evolução
     var alunoDetalhe by remember { mutableStateOf<AlunoResumo?>(null) }
 
-    // Se veio sem turma definida, pega a primeira
     LaunchedEffect(turmas) {
         if (turmaSelecionada == -1L && turmas.isNotEmpty()) {
             turmaSelecionada = turmas.first().id
@@ -158,18 +221,25 @@ fun StudentPerformanceScreen(
         vm.notasDaTurma(turmaSelecionada)
     }.collectAsState(initial = emptyList<NotaAlunoProva>())
 
+    // ---- NOVO: frequência da turma (outra fonte, mesmo studentId) ----
+    val frequencias by remember(turmaSelecionada) {
+        vm.resumoFrequencia(turmaSelecionada)
+    }.collectAsState(initial = emptyList<ResumoFrequencia>())
+
     val notasFiltradas = remember(notas, bimestreFiltro) {
         if (bimestreFiltro == 0) notas else notas.filter { it.bimester == bimestreFiltro }
     }
 
-    val alunos = remember(notasFiltradas, ordenacao) {
-        val base = montarResumos(notasFiltradas)
+    val alunos = remember(notasFiltradas, frequencias, ordenacao) {
+        val base = montarResumos(notasFiltradas, frequencias)
         when (ordenacao) {
-            1 -> base.sortedByDescending { it.mediaGeral }
+            1 -> base.sortedByDescending { it.mediaGeral ?: Double.NEGATIVE_INFINITY }
             2 -> base.sortedByDescending { it.evolucao ?: Double.NEGATIVE_INFINITY }
             else -> base.sortedBy { it.nome.lowercase() }
         }
     }
+
+    val pontosTurma = remember(notasFiltradas) { pontosDaTurma(notasFiltradas) }
 
     val nomeTurma = turmas.firstOrNull { it.id == turmaSelecionada }?.name ?: "Escolha a turma"
 
@@ -252,13 +322,13 @@ fun StudentPerformanceScreen(
                     EmptyState(
                         modifier = Modifier.fillMaxWidth(),
                         icone = Icons.Default.ShowChart,
-                        titulo = "Sem notas ainda",
-                        mensagem = "Lance as notas em Avaliações para comparar os alunos " +
-                                "entre os bimestres."
+                        titulo = "Sem dados ainda",
+                        mensagem = "Lance notas em Avaliações e faça a chamada em Frequência " +
+                                "para comparar os alunos."
                     )
                 } else {
                     Text(
-                        text = "${alunos.size} aluno(s) com nota lançada",
+                        text = "${alunos.size} aluno(s) no comparativo",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -269,6 +339,10 @@ fun StudentPerformanceScreen(
                             onClick = { alunoDetalhe = it }
                         )
                     }
+
+                    Spacer(Modifier.height(2.dp))
+                    CartaoEvolucaoTurma(pontos = pontosTurma, qtdAlunos = alunos.size)
+                    CartaoFrequenciaTurma(alunos = alunos)
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -290,6 +364,119 @@ fun StudentPerformanceScreen(
  *  COMPONENTES
  * ============================================================ */
 
+/** Card com o gráfico de linha da média da turma prova a prova. */
+@Composable
+private fun CartaoEvolucaoTurma(
+    pontos: List<PontoGrafico>,
+    qtdAlunos: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ShowChart,
+                    contentDescription = null,
+                    tint = Roxo,
+                    modifier = Modifier.height(18.dp).width(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Evolução da turma",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (pontos.isEmpty()) "Sem provas lançadas"
+                        else "Média dos alunos em ${pontos.size} prova(s)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            GraficoLinha(
+                pontos = pontos,
+                maxValor = 10.0,
+                altura = 210.dp,
+                cor = Roxo,
+                mensagemVazio = "Lance notas nas avaliações para ver a evolução da turma."
+            )
+        }
+    }
+}
+
+/** NOVO — barras de presença, do que faltou mais pro que faltou menos. */
+@Composable
+private fun CartaoFrequenciaTurma(alunos: List<AlunoResumo>) {
+    val comChamada = alunos
+        .filter { it.aulas > 0 && it.percentualPresenca != null }
+        .sortedBy { it.percentualPresenca ?: 0 }
+
+    if (comChamada.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Roxo,
+                    modifier = Modifier.height(18.dp).width(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Frequência da turma",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Do que faltou mais pro que faltou menos",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            GraficoBarras(
+                barras = comChamada.map {
+                    BarraGrafico(
+                        rotulo = apelido(it.nome),
+                        valor = it.percentualPresenca?.toDouble(),
+                        cor = corDaPresenca(it.percentualPresenca)
+                    )
+                },
+                maxValor = 100.0,
+                altura = 210.dp,
+                sufixo = "%",
+                mensagemVazio = "Nenhuma chamada registrada nessa turma."
+            )
+
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Verde ≥ 85% · Âmbar 75–84% · Vermelho < 75%",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @Composable
 private fun CartaoAluno(
     aluno: AlunoResumo,
@@ -297,7 +484,13 @@ private fun CartaoAluno(
     onClick: (AlunoResumo) -> Unit
 ) {
     val tendencia = tendenciaDe(aluno.evolucao)
-    val rotuloMedia = if (bimestreFiltro == 0) "média" else "média do ${bimestreFiltro}º bim"
+
+    val textoMedia = if (aluno.notas.isEmpty()) {
+        "sem notas lançadas"
+    } else {
+        val rotuloMedia = if (bimestreFiltro == 0) "média" else "média do ${bimestreFiltro}º bim"
+        "$rotuloMedia ${formatarNumero(aluno.mediaGeral ?: 0.0)} • ${aluno.notas.size} prova(s)"
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick(aluno) },
@@ -317,8 +510,7 @@ private fun CartaoAluno(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "$rotuloMedia ${formatarNumero(aluno.mediaGeral)} • " +
-                                "${aluno.notas.size} prova(s)",
+                        text = textoMedia,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -328,17 +520,50 @@ private fun CartaoAluno(
 
             Spacer(Modifier.height(12.dp))
             MiniGrafico(valores = aluno.porBimestre.map { it.second }, cor = tendencia.cor)
-            Spacer(Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                aluno.porBimestre.forEach { (bimestre, media) ->
-                    PillBimestre(bimestre, media)
+            // ---- NOVO: frequência no comparativo ----
+            Spacer(Modifier.height(10.dp))
+            LinhaPresenca(percentual = aluno.percentualPresenca, presentes = aluno.presentes, aulas = aluno.aulas)
+
+            if (aluno.porBimestre.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    aluno.porBimestre.forEach { (bimestre, media) ->
+                        PillBimestre(bimestre, media)
+                    }
                 }
             }
         }
+    }
+}
+
+/** Linha de presença com cor por faixa. Sem chamada = tom neutro. */
+@Composable
+private fun LinhaPresenca(percentual: Int?, presentes: Int, aulas: Int) {
+    val cor = corDaPresenca(percentual)
+    val texto = if (percentual == null) {
+        "Sem chamada registrada"
+    } else {
+        "Frequência $percentual% • $presentes/$aulas aulas"
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = if (percentual == null) Icons.Default.Remove else Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint = cor,
+            modifier = Modifier.height(14.dp).width(14.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = texto,
+            style = MaterialTheme.typography.labelMedium,
+            color = cor,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -519,7 +744,8 @@ private fun DetalheAluno(aluno: AlunoResumo) {
             Column(Modifier.weight(1f)) {
                 Text(aluno.nome, style = MaterialTheme.typography.titleLarge)
                 Text(
-                    text = "média geral ${formatarNumero(aluno.mediaGeral)} • " +
+                    text = if (aluno.notas.isEmpty()) "sem notas lançadas"
+                    else "média geral ${formatarNumero(aluno.mediaGeral ?: 0.0)} • " +
                             "${aluno.notas.size} prova(s) lançada(s)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -528,7 +754,40 @@ private fun DetalheAluno(aluno: AlunoResumo) {
             EtiquetaTendencia(tendencia)
         }
 
-        Spacer(Modifier.height(20.dp))
+        // ---- NOVO: frequência do aluno ----
+        Spacer(Modifier.height(18.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CaixinhaNumero(
+                valor = if (aluno.aulas == 0) "—" else "${aluno.presentes}",
+                rotulo = "presenças",
+                cor = VerdeTexto,
+                modifier = Modifier.weight(1f)
+            )
+            CaixinhaNumero(
+                valor = if (aluno.aulas == 0) "—" else "${aluno.faltas}",
+                rotulo = "faltas",
+                cor = VermelhoTexto,
+                modifier = Modifier.weight(1f)
+            )
+            CaixinhaNumero(
+                valor = aluno.percentualPresenca?.let { "$it%" } ?: "—",
+                rotulo = "frequência",
+                cor = corDaPresenca(aluno.percentualPresenca),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        if (aluno.notas.isEmpty()) {
+            Spacer(Modifier.height(22.dp))
+            Text(
+                text = "Esse aluno ainda não tem nota lançada — só a frequência aparece aqui.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            return@Column
+        }
+
+        Spacer(Modifier.height(22.dp))
         Text(
             text = "Média por bimestre",
             style = MaterialTheme.typography.titleMedium,
@@ -586,5 +845,36 @@ private fun DetalheAluno(aluno: AlunoResumo) {
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
+    }
+}
+
+/** Quadradinho com um número e uma legenda (presenças / faltas / frequência). */
+@Composable
+private fun CaixinhaNumero(
+    valor: String,
+    rotulo: String,
+    cor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier
+            .background(cor.copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .padding(vertical = 12.dp, horizontal = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = valor,
+            style = MaterialTheme.typography.titleMedium,
+            color = cor,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = rotulo,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

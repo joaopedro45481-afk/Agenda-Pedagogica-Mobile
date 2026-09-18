@@ -16,7 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -35,7 +37,7 @@ import java.time.format.TextStyle as EstiloTexto
 import java.util.Locale
 
 /* ============================================================
- *  HOME — visual novo (lavanda + gradiente violeta + brilho)
+ *  HOME — visual novo (lavanda + gradiente violeta + reflexo)
  *  Autossuficiente: nada aqui depende de Components.kt.
  * ============================================================ */
 
@@ -78,21 +80,33 @@ private fun corDoStatus(s: String) = when {
 }
 
 /* ============================================================
- *  BRILHO — a camada "vidro" dos botões
- *  Faixa de luz diagonal que atravessa o gradiente.
+ *  REFLEXO — o banho de luz que atravessa o gradiente na diagonal.
+ *  Vem do canto superior direito, mais forte no meio do card.
  * ============================================================ */
 @Composable
-private fun BoxScope.BrilhoDiagonal(forca: Float = 0.22f) {
+private fun BoxScope.BrilhoDiagonal(
+    forca: Float = 0.30f,
+    deCimaDireita: Boolean = true
+) {
     Box(
-        Modifier.matchParentSize().background(
-            Brush.linearGradient(
-                0.00f to Color.Transparent,
-                0.45f to Color.White.copy(alpha = 0f),
-                0.54f to Color.White.copy(alpha = forca),
-                0.64f to Color.White.copy(alpha = 0f),
-                1.00f to Color.Transparent
+        Modifier.matchParentSize().drawWithCache {
+            val inicio = if (deCimaDireita) Offset(size.width, 0f) else Offset.Zero
+            val fim = if (deCimaDireita) Offset(0f, size.height) else Offset(size.width, size.height)
+            val reflexo = Brush.linearGradient(
+                colorStops = arrayOf(
+                    0.00f to Color.Transparent,
+                    0.22f to Color.White.copy(alpha = forca * 0.16f),
+                    0.38f to Color.White.copy(alpha = forca * 0.55f),
+                    0.50f to Color.White.copy(alpha = forca),
+                    0.62f to Color.White.copy(alpha = forca * 0.50f),
+                    0.76f to Color.White.copy(alpha = forca * 0.13f),
+                    1.00f to Color.Transparent
+                ),
+                start = inicio,
+                end = fim
             )
-        )
+            onDrawBehind { drawRect(reflexo) }
+        }
     )
 }
 
@@ -263,6 +277,9 @@ fun HomeScreen(navController: NavHostController, vm: AppViewModel = viewModel())
                     ItemMais(Icons.Default.Edit, "Preparador de aulas", "${planos.size} planos") {
                         mostrarMais = false; navController.navigate("planos")
                     }
+                    ItemMais(Icons.Default.HowToReg, "Frequência", "Fazer a chamada do dia") {
+                        mostrarMais = false; navController.navigate("frequencia")
+                    }
                     ItemMais(Icons.Default.MenuBook, "Matérias", "${materias.size} cadastradas") {
                         mostrarMais = false; navController.navigate("subjects")
                     }
@@ -352,8 +369,8 @@ private fun CartaoProximaAula(
             .background(Brush.linearGradient(GradienteVioleta))
             .clickable(onClick = onClick)
     ) {
-        // brilho diagonal (igual ao mockup)
-        BrilhoDiagonal(forca = 0.16f)
+        // reflexo de vidro na diagonal
+        BrilhoDiagonal(forca = 0.34f)
         Column(Modifier.padding(20.dp)) {
             Text(
                 "PRÓXIMA AULA",
@@ -625,7 +642,7 @@ private fun BotaoAcao(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        if (destaque) BrilhoDiagonal(forca = 0.28f)
+        if (destaque) BrilhoDiagonal(forca = 0.30f)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icone, null, tint = tinta, modifier = Modifier.size(22.dp))
             Spacer(Modifier.height(6.dp))
